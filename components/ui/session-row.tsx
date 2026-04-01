@@ -1,8 +1,10 @@
+'use client';
+
+import Link from 'next/link';
 import type { Session } from '@/types/claude';
 
 interface SessionRowProps {
   session: Session;
-  onClick?: () => void;
 }
 
 function timeAgo(dateStr: string): string {
@@ -15,11 +17,11 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-export default function SessionRow({ session, onClick }: SessionRowProps) {
+export default function SessionRow({ session }: SessionRowProps) {
   return (
-    <button
-      onClick={onClick}
-      className="w-full text-left p-4 bg-brand-navy-light/50 border border-brand-navy-light/30 rounded-lg hover:border-brand-cyan/20 transition-colors"
+    <Link
+      href={`/dashboard/sessions/${session.projectPath}/${session.id}`}
+      className="block p-4 bg-brand-navy-light/50 border border-brand-navy-light/30 rounded-lg hover:border-brand-cyan/20 transition-colors"
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-white truncate max-w-[60%]">
@@ -34,6 +36,6 @@ export default function SessionRow({ session, onClick }: SessionRowProps) {
         <span>{session.messageCount} messages</span>
         <span>ID: {session.id.slice(0, 8)}</span>
       </div>
-    </button>
+    </Link>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import MemoryCard from '@/components/ui/memory-card';
+import ExportButton from '@/components/ui/export-button';
+import { useSearchFocus } from '@/hooks/use-search-focus';
 import type { MemoryEntry } from '@/types/claude';
 
 const typeFilters = ['all', 'user', 'feedback', 'project', 'reference'] as const;
@@ -11,6 +13,7 @@ export default function MemoryPage() {
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const searchRef = useSearchFocus<HTMLInputElement>();
 
   useEffect(() => {
     fetch('/api/memory')
@@ -32,12 +35,16 @@ export default function MemoryPage() {
 
   return (
     <div>
-      <h2 className="font-heading text-2xl text-brand-cyan mb-6">Memory</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="font-heading text-2xl text-brand-cyan">Memory</h2>
+        <ExportButton url="/api/export?type=memory&format=markdown" label="Export Markdown" />
+      </div>
 
       <div className="flex flex-wrap gap-3 mb-6">
         <input
+          ref={searchRef}
           type="text"
-          placeholder="Search memory..."
+          placeholder="Search memory... (press / to focus)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 min-w-[200px] max-w-md px-4 py-2 bg-brand-navy-dark border border-brand-navy-light/30 rounded-lg text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-brand-cyan/40"

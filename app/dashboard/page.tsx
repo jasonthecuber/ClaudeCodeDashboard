@@ -1,20 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import StatCard from '@/components/ui/stat-card';
 import SessionRow from '@/components/ui/session-row';
+import { useAutoRefresh } from '@/hooks/use-auto-refresh';
 import type { DashboardStats } from '@/types/claude';
 
 export default function DashboardOverview() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadStats = useCallback(() => {
     fetch('/api/stats')
       .then(r => r.json())
       .then(setStats)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
+  useAutoRefresh(loadStats, 30000);
 
   if (loading) {
     return (

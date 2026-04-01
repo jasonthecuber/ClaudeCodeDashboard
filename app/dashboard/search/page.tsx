@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { useSearchFocus } from '@/hooks/use-search-focus';
 import type { SearchResult } from '@/types/claude';
 
 const typeColors: Record<string, string> = {
@@ -14,6 +16,7 @@ export default function SearchPage() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const searchRef = useSearchFocus<HTMLInputElement>();
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -34,8 +37,9 @@ export default function SearchPage() {
 
       <form onSubmit={handleSearch} className="flex gap-3 mb-8">
         <input
+          ref={searchRef}
           type="text"
-          placeholder="Search sessions, memory, projects..."
+          placeholder="Search sessions, memory, projects... (press / to focus)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 max-w-lg px-4 py-2.5 bg-brand-navy-dark border border-brand-navy-light/30 rounded-lg text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-brand-cyan/40"
@@ -51,9 +55,10 @@ export default function SearchPage() {
 
       <div className="space-y-3">
         {results.map((r, i) => (
-          <div
+          <Link
             key={i}
-            className="p-4 bg-brand-navy-light/50 border border-brand-navy-light/30 rounded-lg"
+            href={r.path}
+            className="block p-4 bg-brand-navy-light/50 border border-brand-navy-light/30 rounded-lg hover:border-brand-cyan/20 transition-colors"
           >
             <div className="flex items-center gap-2">
               <span className={`text-xs font-medium uppercase ${typeColors[r.type] || 'text-gray-400'}`}>
@@ -65,7 +70,7 @@ export default function SearchPage() {
             {r.timestamp && (
               <p className="text-xs text-gray-600 mt-1">{new Date(r.timestamp).toLocaleString()}</p>
             )}
-          </div>
+          </Link>
         ))}
         {searched && !loading && results.length === 0 && (
           <p className="text-gray-500 text-sm">No results found for &quot;{query}&quot;.</p>

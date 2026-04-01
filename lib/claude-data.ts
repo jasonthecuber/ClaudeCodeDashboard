@@ -85,36 +85,60 @@ export async function listProjects(): Promise<Project[]> {
 // Sessions
 // ---------------------------------------------------------------------------
 
-/** Parse a JSONL session file into messages */
+/** Extract text content from a Claude Code message content field.
+ *  Content can be a string, or an array of blocks like [{type:"text",text:"..."}] */
+function extractTextContent(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((block: { type?: string }) => block.type === 'text')
+      .map((block: { text?: string }) => block.text || '')
+      .join('\n');
+  }
+  return '';
+}
+
+/** Parse a JSONL session file into messages.
+ *  Claude Code JSONL format: each line is a JSON object with `type` field:
+ *  - type:"user"      → message.content is string or array of {type,text} blocks
+ *  - type:"assistant"  → message.content is array of blocks (text, thinking, tool_use, tool_result)
+ *  - type:"system"     → system/meta entries (bridge_status, file-history-snapshot, etc.)
+ */
 function parseSessionMessages(content: string): SessionMessage[] {
   const messages: SessionMessage[] = [];
   for (const line of content.split('\n')) {
     if (!line.trim()) continue;
     try {
       const obj = JSON.parse(line);
-      // Claude Code JSONL format varies — adapt to common shapes
-      if (obj.type === 'human' || obj.role === 'user') {
-        messages.push({
-          role: 'user',
-          content: typeof obj.message === 'string' ? obj.message :
-                   typeof obj.content === 'string' ? obj.content :
-                   JSON.stringify(obj.content || obj.message),
-          timestamp: obj.timestamp,
-        });
-      } else if (obj.type === 'assistant' || obj.role === 'assistant') {
-        messages.push({
-          role: 'assistant',
-          content: typeof obj.message === 'string' ? obj.message :
-                   typeof obj.content === 'string' ? obj.content :
-                   JSON.stringify(obj.content || obj.message),
-          timestamp: obj.timestamp,
-        });
-      } else if (obj.type === 'system' || obj.role === 'system') {
-        messages.push({
-          role: 'system',
-          content: typeof obj.content === 'string' ? obj.content : JSON.stringify(obj),
-          timestamp: obj.timestamp,
-        });
+
+      if (obj.type === 'user' && obj.message) {
+        const text = extractTextContent(obj.message.content);
+        if (text) {
+          messages.push({
+            role: 'user',
+            content: text,
+            timestamp: obj.timestamp,
+          });
+        }
+      } else if (obj.type === 'assistant' && obj.message) {
+        const text = extractTextContent(obj.message.content);
+        if (text) {
+          messages.push({
+            role: 'assistant',
+            content: text,
+            timestamp: obj.timestamp,
+          });
+        }
+      } else if (obj.type === 'system' && !obj.subtype) {
+        // Skip meta entries like bridge_status, file-history-snapshot
+        const text = typeof obj.content === 'string' ? obj.content : '';
+        if (text) {
+          messages.push({
+            role: 'system',
+            content: text,
+            timestamp: obj.timestamp,
+          });
+        }
       }
     } catch { /* skip malformed lines */ }
   }
@@ -214,12 +238,8 @@ export async function getMemoryIndex(projectName?: string): Promise<MemoryIndex>
   return { entries, raw };
 }
 
-/** List all memory files for a project or global */
-export async function listMemories(projectName?: string): Promise<MemoryEntry[]> {
-  const memoryDir = projectName
-    ? path.join(getProjectsDir(), projectName, 'memory')
-    : path.join(getClaudeHome(), 'memory');
-
+/** Read memory files from a single directory */
+async function readMemoryDir(memoryDir: string, projectLabel?: string): Promise<MemoryEntry[]> {
   if (!(await exists(memoryDir))) return [];
 
   const files = await fs.readdir(memoryDir);
@@ -231,11 +251,12 @@ export async function listMemories(projectName?: string): Promise<MemoryEntry[]>
     const raw = await readText(filePath);
     if (!raw) continue;
 
+    const label = projectLabel ? `[${projectLabel}] ` : '';
     try {
       const { data, content } = matter(raw);
       memories.push({
         fileName: f,
-        name: data.name || f.replace('.md', ''),
+        name: `${label}${data.name || f.replace('.md', '')}`,
         description: data.description || '',
         type: data.type || 'reference',
         content: content.trim(),
@@ -244,12 +265,36 @@ export async function listMemories(projectName?: string): Promise<MemoryEntry[]>
     } catch {
       memories.push({
         fileName: f,
-        name: f.replace('.md', ''),
+        name: `${label}${f.replace('.md', '')}`,
         description: '',
         type: 'reference',
         content: raw,
         filePath,
       });
+    }
+  }
+
+  return memories;
+}
+
+/** List all memory files — for a specific project, or all projects + global */
+export async function listMemories(projectName?: string): Promise<MemoryEntry[]> {
+  if (projectName) {
+    return readMemoryDir(path.join(getProjectsDir(), projectName, 'memory'));
+  }
+
+  // Scan global memory + all per-project memory dirs
+  const globalDir = path.join(getClaudeHome(), 'memory');
+  const memories = await readMemoryDir(globalDir, 'global');
+
+  const projectsDir = getProjectsDir();
+  if (await exists(projectsDir)) {
+    const entries = await fs.readdir(projectsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const projMemDir = path.join(projectsDir, entry.name, 'memory');
+      const projMemories = await readMemoryDir(projMemDir, entry.name);
+      memories.push(...projMemories);
     }
   }
 

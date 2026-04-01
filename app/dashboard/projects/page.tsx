@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { Project } from '@/types/claude';
 
 function timeAgo(dateStr: string): string {
@@ -33,9 +34,10 @@ export default function ProjectsPage() {
       ) : (
         <div className="space-y-2">
           {projects.map((p) => (
-            <div
+            <Link
               key={p.name}
-              className="p-4 bg-brand-navy-light/50 border border-brand-navy-light/30 rounded-lg hover:border-brand-cyan/20 transition-colors"
+              href={`/dashboard/projects/${p.name}`}
+              className="block p-4 bg-brand-navy-light/50 border border-brand-navy-light/30 rounded-lg hover:border-brand-cyan/20 transition-colors"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-white">{p.name}</h3>
@@ -53,7 +55,7 @@ export default function ProjectsPage() {
                   <span className="text-chameleon-purple/60">Memory</span>
                 )}
               </div>
-            </div>
+            </Link>
           ))}
           {projects.length === 0 && (
             <p className="text-gray-500 text-sm">No projects found.</p>
